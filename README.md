@@ -1,6 +1,6 @@
 # azure-apim-mcp-agent
 
-A reference implementation for exposing Azure API Management as an MCP (Model Context Protocol) server, enabling AI agents like Claude and M365 Copilot to discover, query, and interact with your APIs using natural language.
+A reference implementation for exposing Azure API Management as an MCP (Model Context Protocol) server, enabling AI agents like Claude and M365 Copilot to discover, query, and interact with your APIs using natural language — essentially a **Copilot for your API Catalogue**.
 
 ## Architecture
 
@@ -29,7 +29,9 @@ APIM's built-in MCP Server feature handles the MCP protocol. The Functions app i
 | GET | `/instances/{name}/apis/search?keyword={kw}` | Search APIs by keyword |
 | GET | `/instances/{name}/apis/{apiId}` | Get API metadata |
 | GET | `/instances/{name}/apis/{apiId}/spec` | Download OpenAPI spec |
-| POST | `/chat` | Chat with the AI agent (Azure OpenAI) |
+| GET | `/instances/{name}/apis/{apiId}/operations` | List all operations (endpoints) in an API |
+| GET | `/instances/{name}/catalog` | Full catalog: all APIs with their operations |
+| POST | `/chat` | Natural language API query (Azure OpenAI) |
 | GET | `/health` | Health check |
 
 ## Prerequisites
@@ -81,9 +83,11 @@ curl http://localhost:7071/health
 curl http://localhost:7071/instances
 curl http://localhost:7071/instances/dev/apis
 curl "http://localhost:7071/instances/dev/apis/search?keyword=payment"
+curl http://localhost:7071/instances/dev/apis/my-api/operations
+curl http://localhost:7071/instances/dev/catalog
 curl -X POST http://localhost:7071/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "list all APIs in dev", "sessionId": "test1"}'
+  -d '{"message": "which API gives me a customer transaction history?", "sessionId": "test1"}'
 ```
 
 ## Deployment

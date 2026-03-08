@@ -46,13 +46,13 @@ public class ApimService : IApimService
         var service = GetService(config);
         var results = new List<ApiSummary>();
 
-        await foreach (var api in service.GetApis().GetAllAsync(cancellationToken: ct))
+        await foreach (var apiData in service.GetApis().GetAllAsync(cancellationToken: ct).Select(api => api.Data))
         {
             results.Add(new ApiSummary(
-                api.Data.Name,
-                api.Data.DisplayName,
-                api.Data.Path,
-                api.Data.Description));
+                apiData.Name,
+                apiData.DisplayName,
+                apiData.Path,
+                apiData.Description));
         }
 
         _logger.LogInformation("ListApis | Instance={Instance} Count={Count}",
@@ -76,22 +76,22 @@ public class ApimService : IApimService
         var service = GetService(config);
         var results = new List<ApiSummary>();
 
-        await foreach (var api in service.GetApis().GetAllAsync(cancellationToken: ct))
+        await foreach (var apiData in service.GetApis().GetAllAsync(cancellationToken: ct).Select(api => api.Data))
         {
             bool nameMatch = words.Any(w =>
-                api.Data.DisplayName.Contains(w, StringComparison.OrdinalIgnoreCase));
+                apiData.DisplayName.Contains(w, StringComparison.OrdinalIgnoreCase));
             bool descMatch = words.Any(w =>
-                api.Data.Description?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false);
+                apiData.Description?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false);
             bool pathMatch = words.Any(w =>
-                api.Data.Path?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false);
+                apiData.Path?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false);
 
             if (nameMatch || descMatch || pathMatch)
             {
                 results.Add(new ApiSummary(
-                    api.Data.Name,
-                    api.Data.DisplayName,
-                    api.Data.Path,
-                    api.Data.Description));
+                    apiData.Name,
+                    apiData.DisplayName,
+                    apiData.Path,
+                    apiData.Description));
             }
         }
 
@@ -107,20 +107,20 @@ public class ApimService : IApimService
         var config = ResolveInstance(instanceName);
         var service = GetService(config);
 
-        await foreach (var api in service.GetApis().GetAllAsync(cancellationToken: ct))
+        await foreach (var apiData in service.GetApis().GetAllAsync(cancellationToken: ct).Select(api => api.Data))
         {
-            bool exactName = api.Data.Name.Equals(apiNameOrTitle, StringComparison.OrdinalIgnoreCase);
-            bool titleMatch = api.Data.DisplayName.Contains(apiNameOrTitle, StringComparison.OrdinalIgnoreCase);
+            bool exactName = apiData.Name.Equals(apiNameOrTitle, StringComparison.OrdinalIgnoreCase);
+            bool titleMatch = apiData.DisplayName.Contains(apiNameOrTitle, StringComparison.OrdinalIgnoreCase);
 
             if (exactName || titleMatch)
             {
                 return new ApiDetails(
-                    api.Data.Name,
-                    api.Data.DisplayName,
-                    api.Data.Description,
-                    api.Data.Path,
-                    api.Data.ServiceLink?.ToString(),
-                    api.Data.Protocols?.Select(p => p.ToString()).ToList()
+                    apiData.Name,
+                    apiData.DisplayName,
+                    apiData.Description,
+                    apiData.Path,
+                    apiData.ServiceLink?.ToString(),
+                    apiData.Protocols?.Select(p => p.ToString()).ToList()
                         ?? (IReadOnlyList<string>)[]);
             }
         }
@@ -165,7 +165,7 @@ public class ApimService : IApimService
 
         // Step 3: Parse the spec URL from the response
         // ARM returns { "value": { "link": "https://..." } } for openapi-link format
-        _logger.LogInformation("DownloadSpec | ExportBody={Body}", exportBody);
+        _logger.LogDebug("DownloadSpec | ExportBody={Body}", exportBody);
         using var doc = JsonDocument.Parse(exportBody);
         string? specUrl = null;
         if (doc.RootElement.TryGetProperty("value", out var valEl))
@@ -180,7 +180,7 @@ public class ApimService : IApimService
             return $"Could not extract spec URL from export response. Body: {exportBody}";
 
         // Step 4: Download the actual spec content
-        _logger.LogInformation("DownloadSpec | API={Api} SpecUrl={Url}", details.DisplayName, specUrl);
+        _logger.LogDebug("DownloadSpec | API={Api} SpecUrl={Url}", details.DisplayName, specUrl);
 
         var specClient = _httpClientFactory.CreateClient();
         var specResponse = await specClient.GetAsync(specUrl, ct);
@@ -193,6 +193,78 @@ public class ApimService : IApimService
             return $"Spec downloaded but content was empty (HTTP {specResponse.StatusCode}).";
 
         return specContent;
+    }
+
+    public async Task<IReadOnlyList<ApiOperationSummary>> ListApiOperationsAsync(
+        string instanceName, string apiNameOrTitle, CancellationToken ct = default)
+    {
+        var config = ResolveInstance(instanceName);
+        var service = GetService(config);
+
+        await foreach (var api in service.GetApis().GetAllAsync(cancellationToken: ct))
+        {
+            bool exactName = api.Data.Name.Equals(apiNameOrTitle, StringComparison.OrdinalIgnoreCase);
+            bool titleMatch = api.Data.DisplayName.Contains(apiNameOrTitle, StringComparison.OrdinalIgnoreCase);
+
+            if (exactName || titleMatch)
+            {
+                var results = new List<ApiOperationSummary>();
+
+                await foreach (var opData in api.GetApiOperations()
+                    .GetAllAsync(cancellationToken: ct)
+                    .Select(op => op.Data))
+                {
+                    results.Add(new ApiOperationSummary(
+                        opData.Name,
+                        opData.Method,
+                        opData.UriTemplate,
+                        opData.DisplayName,
+                        opData.Description));
+                }
+
+                _logger.LogInformation("ListApiOperations | Instance={Instance} Api={Api} Count={Count}",
+                    instanceName, apiNameOrTitle, results.Count);
+
+                return results;
+            }
+        }
+
+        return [];
+    }
+
+    public async Task<IReadOnlyList<ApiCatalogEntry>> GetApiCatalogAsync(
+        string instanceName, CancellationToken ct = default)
+    {
+        var config = ResolveInstance(instanceName);
+        var service = GetService(config);
+        var catalog = new List<ApiCatalogEntry>();
+
+        await foreach (var api in service.GetApis().GetAllAsync(cancellationToken: ct))
+        {
+            var operations = new List<ApiOperationSummary>();
+
+            await foreach (var opData in api.GetApiOperations().GetAllAsync(cancellationToken: ct).Select(op => op.Data))
+            {
+                operations.Add(new ApiOperationSummary(
+                    opData.Name,
+                    opData.Method,
+                    opData.UriTemplate,
+                    opData.DisplayName,
+                    opData.Description));
+            }
+
+            catalog.Add(new ApiCatalogEntry(
+                api.Data.Name,
+                api.Data.DisplayName,
+                api.Data.Path,
+                api.Data.Description,
+                operations));
+        }
+
+        _logger.LogInformation("GetApiCatalog | Instance={Instance} ApiCount={Count}",
+            instanceName, catalog.Count);
+
+        return catalog;
     }
 
     private ApimInstanceConfig ResolveInstance(string instanceName)

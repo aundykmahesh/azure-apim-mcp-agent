@@ -202,6 +202,87 @@
         }
       }
     },
+    "/instances/{instanceName}/apis/{apiId}/operations": {
+      "get": {
+        "operationId": "listApiOperations",
+        "summary": "List API Operations",
+        "description": "Lists all HTTP operations (endpoints) for a specific API. Returns the HTTP method, URL template, display name, and description for each operation.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiId",
+            "in": "path",
+            "required": true,
+            "description": "The API display name or internal name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of API operation summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiOperationSummary"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API or APIM instance not found"
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/catalog": {
+      "get": {
+        "operationId": "getApiCatalog",
+        "summary": "Get API Catalog",
+        "description": "Returns all APIs in an APIM instance together with their operations in a single call. Use this for broad discovery or to survey all available endpoints.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of API catalog entries with nested operations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiCatalogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "APIM instance not found"
+          }
+        }
+      }
+    },
     "/chat": {
       "post": {
         "operationId": "chat",
@@ -313,6 +394,63 @@
           "sessionId": {
             "type": "string",
             "description": "The session ID used for this conversation"
+          }
+        }
+      },
+      "ApiOperationSummary": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal operation name"
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method (GET, POST, PUT, DELETE, etc.)"
+          },
+          "uriTemplate": {
+            "type": "string",
+            "description": "URL template relative to the API base path"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Human-readable operation name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Operation description"
+          }
+        }
+      },
+      "ApiCatalogEntry": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal API name"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable API name"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL path prefix"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "API description"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiOperationSummary"
+            },
+            "description": "All HTTP operations (endpoints) in this API"
           }
         }
       },

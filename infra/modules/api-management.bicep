@@ -145,6 +145,52 @@ resource downloadSpecOp 'Microsoft.ApiManagement/service/apis/operations@2022-08
   }
 }
 
+// GET /instances/{instanceName}/apis/{apiId}/operations
+resource listApiOperationsOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
+  parent: mcpApi
+  name: 'listApiOperations'
+  properties: {
+    displayName: 'List API Operations'
+    description: 'Lists all HTTP operations (endpoints) for a specific API.'
+    method: 'GET'
+    urlTemplate: '/instances/{instanceName}/apis/{apiId}/operations'
+    templateParameters: [
+      {
+        name: 'instanceName'
+        description: 'Name of the APIM instance'
+        type: 'string'
+        required: true
+      }
+      {
+        name: 'apiId'
+        description: 'The API display name or internal name'
+        type: 'string'
+        required: true
+      }
+    ]
+  }
+}
+
+// GET /instances/{instanceName}/catalog
+resource getApiCatalogOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
+  parent: mcpApi
+  name: 'getApiCatalog'
+  properties: {
+    displayName: 'Get API Catalog'
+    description: 'Returns all APIs in an APIM instance with their operations in a single call.'
+    method: 'GET'
+    urlTemplate: '/instances/{instanceName}/catalog'
+    templateParameters: [
+      {
+        name: 'instanceName'
+        description: 'Name of the APIM instance'
+        type: 'string'
+        required: true
+      }
+    ]
+  }
+}
+
 // GET /health
 resource healthOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
   parent: mcpApi

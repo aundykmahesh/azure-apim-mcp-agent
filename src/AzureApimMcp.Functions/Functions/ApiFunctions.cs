@@ -109,4 +109,47 @@ public class ApiFunctions
             return new NotFoundObjectResult(new { error = ex.Message });
         }
     }
+
+    [Function("ListApiOperations")]
+    public async Task<IActionResult> ListApiOperations(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get",
+            Route = "instances/{instanceName}/apis/{apiId}/operations")]
+        HttpRequest req,
+        string instanceName,
+        string apiId)
+    {
+        try
+        {
+            var operations = await _apimService.ListApiOperationsAsync(
+                instanceName, apiId, req.HttpContext.RequestAborted);
+
+            if (!operations.Any())
+                return new NotFoundObjectResult(new { error = $"API '{apiId}' not found or has no operations." });
+
+            return new OkObjectResult(operations);
+        }
+        catch (ArgumentException ex)
+        {
+            return new NotFoundObjectResult(new { error = ex.Message });
+        }
+    }
+
+    [Function("GetApiCatalog")]
+    public async Task<IActionResult> GetApiCatalog(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get",
+            Route = "instances/{instanceName}/catalog")]
+        HttpRequest req,
+        string instanceName)
+    {
+        try
+        {
+            var catalog = await _apimService.GetApiCatalogAsync(
+                instanceName, req.HttpContext.RequestAborted);
+            return new OkObjectResult(catalog);
+        }
+        catch (ArgumentException ex)
+        {
+            return new NotFoundObjectResult(new { error = ex.Message });
+        }
+    }
 }

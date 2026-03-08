@@ -14,6 +14,20 @@ public record ApiDetails(
     string? ServiceUrl,
     IReadOnlyList<string> Protocols);
 
+public record ApiOperationSummary(
+    string Name,
+    string Method,
+    string UriTemplate,
+    string? DisplayName,
+    string? Description);
+
+public record ApiCatalogEntry(
+    string Name,
+    string DisplayName,
+    string? Path,
+    string? Description,
+    IReadOnlyList<ApiOperationSummary> Operations);
+
 public interface IApimService
 {
     IReadOnlyList<string> GetConfiguredInstances();
@@ -29,4 +43,10 @@ public interface IApimService
 
     Task<string> DownloadApiSpecAsync(
         string instanceName, string apiNameOrTitle, CancellationToken ct = default);
+
+    Task<IReadOnlyList<ApiOperationSummary>> ListApiOperationsAsync(
+        string instanceName, string apiNameOrTitle, CancellationToken ct = default);
+
+    Task<IReadOnlyList<ApiCatalogEntry>> GetApiCatalogAsync(
+        string instanceName, CancellationToken ct = default);
 }

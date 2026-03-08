@@ -19,11 +19,29 @@ public class ChatFunction
     private static readonly ConcurrentDictionary<string, List<ChatMessage>> Sessions = new();
 
     private const string SystemPrompt =
-        "You are an AI assistant that helps users discover and explore APIs " +
-        "in Azure API Management. You can list APIM instances, search for APIs, " +
-        "get API details, and download OpenAPI specifications. " +
-        "When a user asks about APIs, use the available tools to find the information. " +
-        "Always be helpful and concise.";
+        "You are a Copilot for the API Catalogue — an expert assistant that helps developers " +
+        "discover which APIs and specific endpoints exist in Azure API Management, and understand " +
+        "what each one does.\n\n" +
+        "STRATEGY:\n" +
+        "1. When a user asks a vague or broad question (e.g. 'what payment APIs exist?'), " +
+        "start with get_api_catalog to see all APIs and their operations in one view.\n" +
+        "2. When a user asks about a specific capability (e.g. 'which endpoint gives me a " +
+        "customer's transaction history?'), first call get_api_catalog to survey the landscape, " +
+        "then use list_api_operations on candidate APIs to confirm the exact endpoint.\n" +
+        "3. Keyword search (search_apis) is a good shortcut when the user provides a clear domain " +
+        "term. But search only matches API-level metadata (name, description, path), not the " +
+        "individual operations inside. If search returns no or ambiguous results, browse the catalog.\n" +
+        "4. When you identify a candidate API, always check its operations to confirm it actually " +
+        "has the endpoint the user needs. Do not guess from the API name alone.\n" +
+        "5. Only call download_api_spec when the user explicitly asks for the full spec or when " +
+        "you need precise request/response schema details. Prefer list_api_operations for discovery.\n\n" +
+        "RESPONSE STYLE:\n" +
+        "- Answer concisely. State the API name, the HTTP method and path of the relevant " +
+        "operation, and a one-sentence description.\n" +
+        "- When multiple APIs match, list all candidates with their key operations.\n" +
+        "- If nothing matches after a thorough search, say so clearly and suggest what the user " +
+        "might try next.\n" +
+        "- Use markdown tables or bullet lists when comparing multiple APIs or operations.";
 
     public ChatFunction(IChatClient chatClient, IApimService apimService, ILogger<ChatFunction> logger)
     {
@@ -106,7 +124,24 @@ public class ChatFunction
                  [Description("Name of the APIM instance containing the API")] string instanceName) =>
                     _apimService.DownloadApiSpecAsync(instanceName, apiNameOrTitle),
                 "download_api_spec",
-                "Downloads and returns the full OpenAPI specification content for a specific API.")
+                "Downloads and returns the full OpenAPI specification content for a specific API."),
+
+            AIFunctionFactory.Create(
+                ([Description("The API display name or internal name to list operations for")] string apiNameOrTitle,
+                 [Description("Name of the APIM instance containing the API")] string instanceName) =>
+                    _apimService.ListApiOperationsAsync(instanceName, apiNameOrTitle),
+                "list_api_operations",
+                "Lists all HTTP operations (endpoints) for a specific API. Returns the HTTP method, " +
+                "URL template, display name, and description for each operation. Use this to drill into " +
+                "a specific API and find which endpoint handles a particular capability."),
+
+            AIFunctionFactory.Create(
+                ([Description("Name of the APIM instance to get the full catalog for")] string instanceName) =>
+                    _apimService.GetApiCatalogAsync(instanceName),
+                "get_api_catalog",
+                "Returns all APIs in an APIM instance together with their operations in a single call. " +
+                "Use this for broad discovery questions or when you need to survey all available endpoints. " +
+                "Preferred over making multiple separate list_apis + list_api_operations calls.")
         ];
     }
 }
