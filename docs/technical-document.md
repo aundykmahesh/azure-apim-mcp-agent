@@ -358,8 +358,10 @@ AzureOpenAI__DeploymentName=gpt-4o-mini
 |---|---|---|
 | APIM instances | Configured at deploy time | Dynamic instance discovery |
 | Authentication | Subscription key + Entra ID | OAuth 2.0 flows for end-users |
+| Chat responses | Buffered (full response) | Streaming via SSE (`GetStreamingResponseAsync` + APIM `buffer-response="false"`) |
 | Chat sessions | In-memory (ConcurrentDictionary) | Persistent storage (Redis/Cosmos) |
 | Search | Substring matching | Semantic search with embeddings |
 | Spec caching | No caching | Cache specs to reduce ARM calls |
+| Catalog performance | N+1 ARM calls per request | Cache with `IMemoryCache` (5-min TTL) or Azure AI Search index |
 | Network isolation | External ingress | VNET integration for private connectivity |
 | MCP transport | APIM built-in (HTTP+SSE) | Streamable HTTP transport |

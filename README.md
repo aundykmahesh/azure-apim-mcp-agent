@@ -56,7 +56,10 @@ dotnet restore
 
 ```json
 {
+  "IsEncrypted": false,
   "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "Apim__Instances__0__Name": "dev",
     "Apim__Instances__0__SubscriptionId": "<your-subscription-id>",
     "Apim__Instances__0__ResourceGroup": "<your-resource-group>",

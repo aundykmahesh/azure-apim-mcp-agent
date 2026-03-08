@@ -186,9 +186,10 @@ To add a new APIM instance (e.g., a different team's or environment's instance):
 
 | Phase | Enhancement |
 |---|---|
-| **Current** | API discovery, search, spec download, AI chat |
+| **Current** | API discovery, search, operation-level drill-down, catalog overview, AI chat |
+| **Near-term** | Streaming chat responses (SSE) for real-time answers |
 | **Near-term** | Semantic search with embeddings for smarter matching |
-| **Near-term** | Spec caching for faster responses |
+| **Near-term** | Catalog caching for faster responses |
 | **Medium-term** | API usage analytics — *"Which APIs are most queried by AI agents?"* |
 | **Medium-term** | Proactive recommendations — *"Based on your project, you might need these APIs"* |
 | **Long-term** | Code generation — *"Generate a C# client for the Customer API"* |
