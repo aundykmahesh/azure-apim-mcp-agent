@@ -19,7 +19,7 @@ public class ChatFunction
     private static readonly ConcurrentDictionary<string, List<ChatMessage>> Sessions = new();
 
     private const string SystemPrompt =
-        "You are a Copilot for the API Catalogue — an expert assistant that helps developers " +
+        "You are a Copilot for the API Catalogue — an expert assistant that helps developers, architects, and other business stakeholders" +
         "discover which APIs and specific endpoints exist in Azure API Management, and understand " +
         "what each one does.\n\n" +
         "STRATEGY:\n" +
@@ -61,7 +61,7 @@ public class ChatFunction
                 return new BadRequestObjectResult(new { error = "Message is required." });
 
             var sessionId = body.SessionId ?? "default";
-            _logger.LogInformation("Chat request | Session={SessionId} Message={Message}", sessionId, body.Message);
+            _logger.LogDebug("Chat request | Session={SessionId} Message={Message}", sessionId, body.Message);
 
             var history = Sessions.GetOrAdd(sessionId, _ =>
                 [new(ChatRole.System, SystemPrompt)]);
@@ -73,11 +73,11 @@ public class ChatFunction
                 Tools = [.. CreateTools()]
             };
 
-            _logger.LogInformation("Calling Azure OpenAI with {ToolCount} tools", options.Tools.Count);
+            _logger.LogDebug("Calling Azure OpenAI with {ToolCount} tools", options.Tools.Count);
             var response = await _chatClient.GetResponseAsync(history, options);
             history.AddRange(response.Messages);
 
-            _logger.LogInformation("Chat response received | Session={SessionId}", sessionId);
+            _logger.LogDebug("Chat response received | Session={SessionId}", sessionId);
             return new OkObjectResult(new { response = response.Text, sessionId });
         }
         catch (Exception ex)
