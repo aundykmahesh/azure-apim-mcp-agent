@@ -201,6 +201,66 @@
           }
         }
       }
+    },
+    "/chat": {
+      "post": {
+        "operationId": "chat",
+        "summary": "Chat with AI Agent",
+        "description": "Send a free-text message to the AI agent. The agent uses Azure OpenAI to interpret your query, call the appropriate APIM tools, and return an intelligent response. Supports session-based conversation history.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI agent response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or empty message"
+          },
+          "500": {
+            "description": "AI processing error"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health Check",
+        "description": "Returns the health status of the service.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -225,6 +285,34 @@
             "type": "string",
             "description": "API description",
             "nullable": true
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Optional session ID for conversation continuity. If omitted, defaults to 'default'.",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Free-text message to send to the AI agent (e.g., 'list all payment APIs in dev')"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "string",
+            "description": "The AI agent's response"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "The session ID used for this conversation"
           }
         }
       },

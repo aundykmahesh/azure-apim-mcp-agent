@@ -1,7 +1,7 @@
 targetScope = 'resourceGroup'
 
 @description('Azure region for all resources')
-param location string = resourceGroup().location
+param location string = 'australiaeast'
 
 @description('Environment name used as prefix for resources')
 param environmentName string
@@ -14,6 +14,15 @@ param apimServiceName string
 
 @description('Target APIM instances the Functions app will query')
 param targetApimInstances array
+
+@description('Azure OpenAI endpoint for the chat agent')
+param azureOpenAIEndpoint string = ''
+
+@description('Azure OpenAI deployment name for the chat agent')
+param azureOpenAIDeploymentName string = ''
+
+@description('Azure OpenAI Cognitive Services account name (for role assignment)')
+param azureOpenAICognitiveAccountName string = ''
 
 // ── Managed Identity ──────────────────────────────────────────
 module identity 'modules/managed-identity.bicep' = {
@@ -28,7 +37,7 @@ module identity 'modules/managed-identity.bicep' = {
 module acr 'modules/container-registry.bicep' = {
   name: 'container-registry'
   params: {
-    name: replace('${environmentName}acr', '-', '')
+    name: 'aundyfirstregistry'
     location: location
     identityPrincipalId: identity.outputs.principalId
   }
@@ -55,6 +64,8 @@ module app 'modules/container-app.bicep' = {
     identityClientId: identity.outputs.clientId
     acrLoginServer: acr.outputs.acrLoginServer
     apimInstances: targetApimInstances
+    azureOpenAIEndpoint: azureOpenAIEndpoint
+    azureOpenAIDeploymentName: azureOpenAIDeploymentName
   }
 }
 
@@ -64,6 +75,7 @@ module roles 'modules/role-assignments.bicep' = {
   params: {
     principalId: identity.outputs.principalId
     targetApimInstances: targetApimInstances
+    azureOpenAICognitiveAccountName: azureOpenAICognitiveAccountName
   }
 }
 

@@ -164,19 +164,33 @@ public class ApimService : IApimService
         }
 
         // Step 3: Parse the spec URL from the response
+        // ARM returns { "value": { "link": "https://..." } } for openapi-link format
+        _logger.LogInformation("DownloadSpec | ExportBody={Body}", exportBody);
         using var doc = JsonDocument.Parse(exportBody);
-        var specUrl = doc.RootElement.TryGetProperty("value", out var valEl)
-            ? valEl.GetString()
-            : null;
+        string? specUrl = null;
+        if (doc.RootElement.TryGetProperty("value", out var valEl))
+        {
+            if (valEl.ValueKind == JsonValueKind.String)
+                specUrl = valEl.GetString();
+            else if (valEl.ValueKind == JsonValueKind.Object && valEl.TryGetProperty("link", out var linkEl))
+                specUrl = linkEl.GetString();
+        }
 
         if (string.IsNullOrWhiteSpace(specUrl))
-            return $"Could not extract spec URL from export response.";
+            return $"Could not extract spec URL from export response. Body: {exportBody}";
 
         // Step 4: Download the actual spec content
         _logger.LogInformation("DownloadSpec | API={Api} SpecUrl={Url}", details.DisplayName, specUrl);
 
         var specClient = _httpClientFactory.CreateClient();
-        var specContent = await specClient.GetStringAsync(specUrl, ct);
+        var specResponse = await specClient.GetAsync(specUrl, ct);
+        var specContent = await specResponse.Content.ReadAsStringAsync(ct);
+
+        _logger.LogInformation("DownloadSpec | Status={Status} ContentLength={Length}",
+            specResponse.StatusCode, specContent.Length);
+
+        if (string.IsNullOrWhiteSpace(specContent))
+            return $"Spec downloaded but content was empty (HTTP {specResponse.StatusCode}).";
 
         return specContent;
     }

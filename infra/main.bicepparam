@@ -15,3 +15,8 @@ param targetApimInstances = [
     serviceName: 'aundy-apim'
   }
 ]
+
+// Azure OpenAI for the chat agent
+param azureOpenAIEndpoint = 'https://aundy-mm93xpod-westus.cognitiveservices.azure.com/'
+param azureOpenAIDeploymentName = 'gpt-4o-mini'
+param azureOpenAICognitiveAccountName = 'aundy-mm93xpod-westus'

@@ -1,7 +1,5 @@
 param apimServiceName string
 param containerAppFqdn string
-param tenantId string = tenant().tenantId
-param audienceClientId string = ''
 
 resource apimService 'Microsoft.ApiManagement/service@2022-08-01' existing = {
   name: apimServiceName
@@ -18,11 +16,11 @@ resource mcpBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
 
 resource mcpApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
   parent: apimService
-  name: 'apim-mcp-api'
+  name: 'apim-mcp-agent'
   properties: {
     displayName: 'APIM MCP Agent'
     description: 'REST API for querying Azure API Management instances. Exposed as MCP tools for AI agents.'
-    path: 'apim-mcp'
+    path: 'mcp-agent'
     protocols: [
       'https'
     ]
@@ -34,7 +32,7 @@ resource mcpApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
 // GET /instances
 resource listInstancesOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
   parent: mcpApi
-  name: 'list-instances'
+  name: 'listInstances'
   properties: {
     displayName: 'List APIM Instances'
     description: 'Lists all configured Azure API Management instances available for querying.'
@@ -52,7 +50,7 @@ resource listInstancesOp 'Microsoft.ApiManagement/service/apis/operations@2022-0
 // GET /instances/{instanceName}/apis
 resource listApisOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
   parent: mcpApi
-  name: 'list-apis'
+  name: 'listApis'
   properties: {
     displayName: 'List APIs'
     description: 'Lists all APIs registered in a specific APIM instance.'
@@ -72,12 +70,12 @@ resource listApisOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01'
 // GET /instances/{instanceName}/apis/search?keyword={keyword}
 resource searchApisOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
   parent: mcpApi
-  name: 'search-apis'
+  name: 'searchApis'
   properties: {
     displayName: 'Search APIs'
     description: 'Searches APIs by keyword across name, description, and path in the specified APIM instance.'
     method: 'GET'
-    urlTemplate: '/instances/{instanceName}/apis/search'
+    urlTemplate: '/instances/{instanceName}/apis/search?keyword={keyword}'
     templateParameters: [
       {
         name: 'instanceName'
@@ -85,24 +83,20 @@ resource searchApisOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-0
         type: 'string'
         required: true
       }
+      {
+        name: 'keyword'
+        description: 'Search keyword to match against API name, description, or path'
+        type: 'string'
+        required: true
+      }
     ]
-    request: {
-      queryParameters: [
-        {
-          name: 'keyword'
-          description: 'Search keyword to match against API name, description, or path'
-          type: 'string'
-          required: true
-        }
-      ]
-    }
   }
 }
 
 // GET /instances/{instanceName}/apis/{apiId}
 resource getApiDetailsOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
   parent: mcpApi
-  name: 'get-api-details'
+  name: 'getApiDetails'
   properties: {
     displayName: 'Get API Details'
     description: 'Gets detailed metadata for a specific API including description, service URL, and supported protocols.'
@@ -128,7 +122,7 @@ resource getApiDetailsOp 'Microsoft.ApiManagement/service/apis/operations@2022-0
 // GET /instances/{instanceName}/apis/{apiId}/spec
 resource downloadSpecOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
   parent: mcpApi
-  name: 'download-api-spec'
+  name: 'downloadApiSpec'
   properties: {
     displayName: 'Download API Spec'
     description: 'Downloads and returns the full OpenAPI specification content for a specific API.'
@@ -151,7 +145,43 @@ resource downloadSpecOp 'Microsoft.ApiManagement/service/apis/operations@2022-08
   }
 }
 
-// API policy with JWT validation and backend routing
+// GET /health
+resource healthOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
+  parent: mcpApi
+  name: 'healthCheck'
+  properties: {
+    displayName: 'Health Check'
+    description: 'Returns the health status of the service.'
+    method: 'GET'
+    urlTemplate: '/health'
+    responses: [
+      {
+        statusCode: 200
+        description: 'Service is healthy'
+      }
+    ]
+  }
+}
+
+// POST /chat
+resource chatOp 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
+  parent: mcpApi
+  name: 'chat'
+  properties: {
+    displayName: 'Chat with AI Agent'
+    description: 'Send a free-text message to the AI agent.'
+    method: 'POST'
+    urlTemplate: '/chat'
+    responses: [
+      {
+        statusCode: 200
+        description: 'AI agent response'
+      }
+    ]
+  }
+}
+
+// API policy with backend routing
 resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2022-08-01' = {
   parent: mcpApi
   name: 'policy'

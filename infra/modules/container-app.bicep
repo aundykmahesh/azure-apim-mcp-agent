@@ -6,6 +6,54 @@ param identityId string
 param identityClientId string
 param acrLoginServer string
 param apimInstances array
+param azureOpenAIEndpoint string = ''
+param azureOpenAIDeploymentName string = ''
+
+var baseEnv = [
+  {
+    name: 'AZURE_CLIENT_ID'
+    value: identityClientId
+  }
+  {
+    name: 'AzureWebJobsStorage'
+    value: 'UseDevelopmentStorage=false'
+  }
+  {
+    name: 'FUNCTIONS_WORKER_RUNTIME'
+    value: 'dotnet-isolated'
+  }
+]
+
+var instanceNameEnv = [for (instance, i) in apimInstances: {
+  name: 'Apim__Instances__${i}__Name'
+  value: instance.name
+}]
+
+var instanceSubscriptionEnv = [for (instance, i) in apimInstances: {
+  name: 'Apim__Instances__${i}__SubscriptionId'
+  value: instance.subscriptionId
+}]
+
+var instanceResourceGroupEnv = [for (instance, i) in apimInstances: {
+  name: 'Apim__Instances__${i}__ResourceGroup'
+  value: instance.resourceGroup
+}]
+
+var instanceServiceNameEnv = [for (instance, i) in apimInstances: {
+  name: 'Apim__Instances__${i}__ServiceName'
+  value: instance.serviceName
+}]
+
+var openAIEnv = !empty(azureOpenAIEndpoint) && !empty(azureOpenAIDeploymentName) ? [
+  {
+    name: 'AzureOpenAI__Endpoint'
+    value: azureOpenAIEndpoint
+  }
+  {
+    name: 'AzureOpenAI__DeploymentName'
+    value: azureOpenAIDeploymentName
+  }
+] : []
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
@@ -22,7 +70,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: false
+        external: true
         targetPort: 80
         transport: 'http'
       }
@@ -43,36 +91,12 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             memory: '1Gi'
           }
           env: concat(
-            [
-              {
-                name: 'AZURE_CLIENT_ID'
-                value: identityClientId
-              }
-              {
-                name: 'AzureWebJobsStorage'
-                value: 'UseDevelopmentStorage=false'
-              }
-              {
-                name: 'FUNCTIONS_WORKER_RUNTIME'
-                value: 'dotnet-isolated'
-              }
-            ],
-            [for (instance, i) in apimInstances: {
-              name: 'Apim__Instances__${i}__Name'
-              value: instance.name
-            }],
-            [for (instance, i) in apimInstances: {
-              name: 'Apim__Instances__${i}__SubscriptionId'
-              value: instance.subscriptionId
-            }],
-            [for (instance, i) in apimInstances: {
-              name: 'Apim__Instances__${i}__ResourceGroup'
-              value: instance.resourceGroup
-            }],
-            [for (instance, i) in apimInstances: {
-              name: 'Apim__Instances__${i}__ServiceName'
-              value: instance.serviceName
-            }]
+            baseEnv,
+            instanceNameEnv,
+            instanceSubscriptionEnv,
+            instanceResourceGroupEnv,
+            instanceServiceNameEnv,
+            openAIEnv
           )
         }
       ]
