@@ -1,0 +1,488 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "APIM MCP Agent",
+    "description": "REST API for querying Azure API Management instances. Exposed as MCP tools for AI agents.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/instances": {
+      "get": {
+        "operationId": "listInstances",
+        "summary": "List APIM Instances",
+        "description": "Lists all configured Azure API Management instances available for querying. Returns the friendly name of each instance.",
+        "responses": {
+          "200": {
+            "description": "Array of APIM instance names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Friendly name of the APIM instance"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/apis": {
+      "get": {
+        "operationId": "listApis",
+        "summary": "List APIs",
+        "description": "Lists all APIs registered in a specific Azure API Management instance. Returns name, display name, path, and description for each API.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance to query (e.g., 'dev', 'production'). Use listInstances to see available names.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of API summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiSummary"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "APIM instance not found"
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/apis/search": {
+      "get": {
+        "operationId": "searchApis",
+        "summary": "Search APIs",
+        "description": "Searches APIs by keyword across name, description, and URL path in the specified APIM instance.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance to search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "description": "Search keyword to match against API name, description, or path (e.g., 'payments', 'users')",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of matching API summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing keyword parameter"
+          },
+          "404": {
+            "description": "APIM instance not found"
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/apis/{apiId}": {
+      "get": {
+        "operationId": "getApiDetails",
+        "summary": "Get API Details",
+        "description": "Gets detailed metadata for a specific API including description, service URL, and supported protocols.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiId",
+            "in": "path",
+            "required": true,
+            "description": "The API display name or internal name to look up",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API or APIM instance not found"
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/apis/{apiId}/spec": {
+      "get": {
+        "operationId": "downloadApiSpec",
+        "summary": "Download API Spec",
+        "description": "Downloads and returns the full OpenAPI specification content for a specific API.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiId",
+            "in": "path",
+            "required": true,
+            "description": "The API display name or internal name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OpenAPI spec content (JSON or YAML)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API or APIM instance not found"
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/apis/{apiId}/operations": {
+      "get": {
+        "operationId": "listApiOperations",
+        "summary": "List API Operations",
+        "description": "Lists all HTTP operations (endpoints) for a specific API. Returns the HTTP method, URL template, display name, and description for each operation.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiId",
+            "in": "path",
+            "required": true,
+            "description": "The API display name or internal name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of API operation summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiOperationSummary"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API or APIM instance not found"
+          }
+        }
+      }
+    },
+    "/instances/{instanceName}/catalog": {
+      "get": {
+        "operationId": "getApiCatalog",
+        "summary": "Get API Catalog",
+        "description": "Returns all APIs in an APIM instance together with their operations in a single call. Use this for broad discovery or to survey all available endpoints.",
+        "parameters": [
+          {
+            "name": "instanceName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the APIM instance",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of API catalog entries with nested operations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiCatalogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "APIM instance not found"
+          }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "operationId": "chat",
+        "summary": "Chat with AI Agent",
+        "description": "Send a free-text message to the AI agent. The agent uses Azure OpenAI to interpret your query, call the appropriate APIM tools, and return an intelligent response. Supports session-based conversation history.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI agent response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or empty message"
+          },
+          "500": {
+            "description": "AI processing error"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health Check",
+        "description": "Returns the health status of the service.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiSummary": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal API name"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable API name"
+          },
+          "path": {
+            "type": "string",
+            "description": "URL path prefix",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "API description",
+            "nullable": true
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Optional session ID for conversation continuity. If omitted, defaults to 'default'.",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Free-text message to send to the AI agent (e.g., 'list all payment APIs in dev')"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "string",
+            "description": "The AI agent's response"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "The session ID used for this conversation"
+          }
+        }
+      },
+      "ApiOperationSummary": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal operation name"
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method (GET, POST, PUT, DELETE, etc.)"
+          },
+          "uriTemplate": {
+            "type": "string",
+            "description": "URL template relative to the API base path"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Human-readable operation name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Operation description"
+          }
+        }
+      },
+      "ApiCatalogEntry": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal API name"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable API name"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL path prefix"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "API description"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiOperationSummary"
+            },
+            "description": "All HTTP operations (endpoints) in this API"
+          }
+        }
+      },
+      "ApiDetails": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

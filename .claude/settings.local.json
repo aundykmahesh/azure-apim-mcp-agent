@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:devblogs.microsoft.com)",
+      "WebFetch(domain:csharp.sdk.modelcontextprotocol.io)",
+      "WebFetch(domain:www.nuget.org)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:www.chingono.com)",
+      "Bash(dotnet new sln --name azure-apim-mcp-agent)",
+      "Bash(dotnet sln add src/AzureApimMcp.Functions/AzureApimMcp.Functions.csproj)",
+      "Bash(dotnet build)"
+    ]
+  }
+}

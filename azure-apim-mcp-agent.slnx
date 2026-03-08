@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AzureApimMcp.Functions/AzureApimMcp.Functions.csproj" />
+  </Folder>
+</Solution>
