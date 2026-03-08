@@ -29,14 +29,18 @@ APIM's built-in MCP Server feature handles the MCP protocol. The Functions app i
 | GET | `/instances/{name}/apis/search?keyword={kw}` | Search APIs by keyword |
 | GET | `/instances/{name}/apis/{apiId}` | Get API metadata |
 | GET | `/instances/{name}/apis/{apiId}/spec` | Download OpenAPI spec |
+| POST | `/chat` | Chat with the AI agent (Azure OpenAI) |
+| GET | `/health` | Health check |
 
 ## Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Azure Functions Core Tools v4](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local)
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+- [Docker](https://docs.docker.com/get-docker/)
 - An Azure subscription with at least one API Management instance
 - Azure CLI logged in (`az login`)
+- (Optional) Azure OpenAI resource for the `/chat` endpoint
 
 ## Local Development
 
@@ -54,10 +58,14 @@ dotnet restore
     "Apim__Instances__0__Name": "dev",
     "Apim__Instances__0__SubscriptionId": "<your-subscription-id>",
     "Apim__Instances__0__ResourceGroup": "<your-resource-group>",
-    "Apim__Instances__0__ServiceName": "<your-apim-name>"
+    "Apim__Instances__0__ServiceName": "<your-apim-name>",
+    "AzureOpenAI__Endpoint": "<your-azure-openai-endpoint>",
+    "AzureOpenAI__DeploymentName": "<your-deployment-name>"
   }
 }
 ```
+
+The Azure OpenAI settings are optional. If omitted, the `/chat` endpoint will be unavailable but all other endpoints will work.
 
 3. Run locally:
 
@@ -69,14 +77,32 @@ func start
 4. Test the endpoints:
 
 ```bash
+curl http://localhost:7071/health
 curl http://localhost:7071/instances
 curl http://localhost:7071/instances/dev/apis
-curl http://localhost:7071/instances/dev/apis/search?keyword=payment
+curl "http://localhost:7071/instances/dev/apis/search?keyword=payment"
+curl -X POST http://localhost:7071/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "list all APIs in dev", "sessionId": "test1"}'
 ```
 
 ## Deployment
 
-### Build and push the container image
+### Quick deploy (recommended)
+
+Use the included deployment script which builds, pushes, and deploys everything:
+
+```powershell
+./deploy.ps1
+```
+
+Options:
+- `./deploy.ps1 -SkipBuild` — Skip Docker build/push, deploy infra and restart only
+- `./deploy.ps1 -SkipInfra` — Skip Bicep deployment, build and restart only
+
+### Manual deployment
+
+#### Build and push the container image
 
 ```bash
 az acr login --name <acr-name>
@@ -84,13 +110,22 @@ docker build -f src/AzureApimMcp.Functions/Dockerfile -t <acr-name>.azurecr.io/a
 docker push <acr-name>.azurecr.io/apim-mcp:latest
 ```
 
-### Deploy infrastructure with Bicep
+#### Deploy infrastructure with Bicep
 
 ```bash
 az deployment group create \
   --resource-group <resource-group> \
   --template-file infra/main.bicep \
   --parameters infra/main.bicepparam
+```
+
+#### Update the Container App
+
+```bash
+az containerapp update \
+  --resource-group <resource-group> \
+  --name apim-mcp-app \
+  --image <acr-name>.azurecr.io/apim-mcp:latest
 ```
 
 ### Configure APIM MCP Server
@@ -125,10 +160,14 @@ Add more instances via environment variables or `local.settings.json`:
 src/AzureApimMcp.Functions/
   Configuration/     - Strongly-typed config models
   Services/          - IApimService + ApimService (ARM SDK)
-  Functions/         - HTTP trigger functions (REST endpoints)
+  Functions/         - HTTP trigger functions (REST + Chat endpoints)
   Program.cs         - Host builder + DI registration
+  openapi.json       - OpenAPI specification
 
 infra/
   main.bicep         - Orchestrator
+  main.bicepparam    - Parameter values
   modules/           - ACR, ACA, identity, RBAC, APIM
+
+deploy.ps1           - Build, push, and deploy script
 ```
