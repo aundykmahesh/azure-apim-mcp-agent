@@ -32,6 +32,7 @@ $AcrLoginServer = "$AcrName.azurecr.io"
 $ImageName = "$AcrLoginServer/${EnvironmentName}:latest"
 $ContainerAppName = "$EnvironmentName-app"
 $DockerfilePath = 'src/AzureApimMcp.Functions/Dockerfile'
+$ApimServiceName = 'aundy-ingress'
 
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ' APIM MCP Agent - Deploy to Azure' -ForegroundColor Cyan
@@ -68,7 +69,8 @@ if (-not $SkipInfra) {
     az deployment group create `
         --resource-group $ResourceGroup `
         --template-file infra/main.bicep `
-        --parameters infra/main.bicepparam
+        --parameters infra/main.bicepparam `
+        --mode Incremental
     if ($LASTEXITCODE -ne 0) { throw 'Bicep deployment failed.' }
     Write-Host '      Infrastructure deployed.' -ForegroundColor Green
     Write-Host ''
@@ -93,7 +95,7 @@ Write-Host ' Deployment complete!' -ForegroundColor Green
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ''
 
-# Show the Container App FQDN
+# Show endpoints
 $fqdn = az containerapp show --resource-group $ResourceGroup --name $ContainerAppName --query 'properties.configuration.ingress.fqdn' -o tsv
-Write-Host "Container App: https://$fqdn" -ForegroundColor Cyan
-Write-Host "APIM endpoint: https://aundy-apim.azure-api.net/mcp-agent" -ForegroundColor Cyan
+Write-Host "Functions App:  https://$fqdn" -ForegroundColor Cyan
+Write-Host "APIM endpoint:  https://$ApimServiceName.azure-api.net/mcp-agent" -ForegroundColor Cyan

@@ -13,19 +13,76 @@ The solution consists of an Azure Functions app deployed on Azure Container Apps
 ### 2.1 High-Level Flow
 
 ```
-AI Agent (Claude / Copilot / VS Code)
-    |   MCP Protocol
-    v
-Azure API Management (MCP Server)
-    |   REST over HTTPS
-    v
-Azure Container Apps (Azure Functions)
-    |   Azure SDK (Managed Identity)
-    v
-Azure Resource Manager (ARM) APIs
-    |
-    v
-Target APIM Instance(s) - API Metadata & OpenAPI Specs
+                    Azure APIM (aundy-apim)
+              ┌──────────────────────────────┐
+              │     Managed Gateway          │
+              │  (all APIs + MCP Server)     │
+              └──────────┬───────────────────┘
+                         │
+         ┌───────────────┼──────────────────┐
+         │  Container Apps Environment      │
+         │               │                  │
+         │     ┌─────────┴──────┐           │
+         │     │ Functions App  │           │
+         │     │ (apim-mcp-app) │           │
+         │     │ :80            │           │
+         │     │ REST API       │           │
+         │     └────────────────┘           │
+         └──────────────────────────────────┘
+                         │
+                         v
+               Azure Resource Manager
+                         │
+                         v
+               Target APIM Instance(s)
+```
+
+**Traffic paths:**
+- **Regular API consumers** → APIM managed gateway → backends
+- **AI/MCP clients** → APIM managed gateway (MCP Server) → Functions App
+- **Direct REST calls** → APIM managed gateway → Functions App
+
+### 2.1.1 MCP Server Flow
+
+```mermaid
+sequenceDiagram
+    actor AI as AI/MCP Client
+    participant APIM as Azure APIM<br/>(MCP Server)
+    participant Func as Functions App<br/>(REST API)
+    participant ARM as Azure Resource<br/>Manager
+
+    AI->>APIM: Natural language request<br/>(MCP protocol)
+    APIM->>APIM: Map request to<br/>REST operation
+    APIM->>Func: HTTP GET /instances/{name}/apis
+    Func->>ARM: Query APIM instance metadata
+    ARM-->>Func: API list
+    Func-->>APIM: JSON response
+    APIM->>APIM: Translate REST<br/>to MCP tool result
+    APIM-->>AI: MCP tool result
+```
+
+### 2.1.2 Agent Flow (with Function Calling)
+
+```mermaid
+sequenceDiagram
+    actor User as User
+    participant OpenAI as Azure OpenAI<br/>(GPT-4o-mini)
+    participant Func as Functions App<br/>(/chat endpoint)
+    participant Tools as Tool Registry<br/>(7 discovery tools)
+    participant APIM as Target APIM<br/>Instance(s)
+
+    User->>Func: POST /chat<br/>Natural language query
+    Func->>OpenAI: Message + 7 tools (function calling)
+    OpenAI-->>Func: "I'll use search_apis<br/>and list_api_operations"
+    Func->>Tools: Execute search_apis(keyword)
+    Tools->>APIM: ARM call for APIs
+    APIM-->>Tools: Matching APIs
+    Func->>Tools: Execute list_api_operations(apiId)
+    Tools->>APIM: ARM call for operations
+    APIM-->>Tools: Operations list
+    Func->>OpenAI: Tool results + context
+    OpenAI-->>Func: Natural language response
+    Func-->>User: Answer with API details
 ```
 
 ### 2.2 Component Responsibilities
@@ -33,8 +90,8 @@ Target APIM Instance(s) - API Metadata & OpenAPI Specs
 | Component | Role |
 |---|---|
 | **AI Agent** (MCP Client) | Sends natural language requests; invokes MCP tools |
-| **Azure API Management** | MCP Server protocol handler; auth gateway (subscription key + Entra ID); routes REST calls to backend |
-| **Azure Container Apps** | Hosts the .NET 10 Azure Functions app; scale-to-zero; consumption workload |
+| **Azure API Management** | MCP Server protocol handler; auth gateway (subscription key + Entra ID); routes REST calls to Functions backend |
+| **Azure Container Apps** | Hosts the .NET 10 Azure Functions app; consumption workload with scale-to-zero |
 | **Azure Functions** | REST API endpoints for API discovery + AI chat agent with function calling |
 | **Azure Resource Manager** | Provides API metadata, descriptions, and OpenAPI export links from target APIM instances |
 | **Azure OpenAI** (optional) | Powers the `/chat` endpoint with GPT-4o-mini and function calling |
@@ -45,6 +102,7 @@ Target APIM Instance(s) - API Metadata & OpenAPI Specs
 - **REST-only backend**: The Functions app exposes standard REST endpoints, making it testable and reusable outside of MCP.
 - **Managed Identity everywhere**: No secrets stored anywhere. `DefaultAzureCredential` used for all Azure SDK calls.
 - **Scale-to-zero**: Container Apps scale down to 0 replicas when idle, keeping costs minimal.
+- **Simplified architecture**: Direct integration between APIM managed gateway and Functions app eliminates unnecessary complexity.
 
 ---
 
@@ -141,7 +199,7 @@ Resource Group
   +-- Log Analytics Workspace (30-day retention)
   |
   +-- Container App Environment (Consumption workload)
-  |     +-- Container App: apim-mcp-app
+  |     +-- Container App: apim-mcp-app (Functions)
   |           - Image: {acr}/apim-mcp:latest
   |           - CPU: 0.5 cores, Memory: 1 Gi
   |           - Scale: 0-3 replicas (HTTP trigger, 50 concurrent)
@@ -153,6 +211,7 @@ Resource Group
   |     +-- 9 operations (listInstances, listApis, searchApis, getApiDetails,
   |     |       downloadApiSpec, listApiOperations, getApiCatalog, healthCheck, chat)
   |     +-- Policy: set-backend-service -> apim-mcp-backend
+  |     +-- Available via APIM managed gateway
   |
   +-- Role Assignments
         +-- API Management Service Reader -> target APIM
@@ -186,6 +245,7 @@ Resource Group
 | `azureOpenAIEndpoint` | OpenAI endpoint URL | `https://...cognitiveservices.azure.com/` |
 | `azureOpenAIDeploymentName` | Model deployment name | `gpt-4o-mini` |
 | `azureOpenAICognitiveAccountName` | OpenAI account name | `aundy-mm93xpod-westus` |
+| `createRoleAssignments` | Whether to create role assignments | `false` (if already exist) |
 
 ---
 
@@ -290,10 +350,10 @@ src/AzureApimMcp.Functions/
 ```
 
 **Deployment script steps:**
-1. `docker build` - Multi-stage build from Dockerfile
-2. `az acr login` + `docker push` - Push image to ACR
-3. `az deployment group create` - Deploy Bicep infrastructure
-4. `az containerapp update` - Update Container App to pull latest image
+1. `docker build` — Multi-stage build from Dockerfile
+2. `az acr login` + `docker push` — Push image to ACR
+3. `az deployment group create` — Deploy Bicep infrastructure
+4. `az containerapp update` — Update Functions Container App to pull latest image
 
 ### 7.3 Post-Deployment: Enable MCP Server in APIM
 
@@ -363,5 +423,5 @@ AzureOpenAI__DeploymentName=gpt-4o-mini
 | Search | Substring matching | Semantic search with embeddings |
 | Spec caching | No caching | Cache specs to reduce ARM calls |
 | Catalog performance | N+1 ARM calls per request | Cache with `IMemoryCache` (5-min TTL) or Azure AI Search index |
-| Network isolation | External ingress | VNET integration for private connectivity |
+| Network isolation | Public ingress via APIM | VNET integration for full private connectivity |
 | MCP transport | APIM built-in (HTTP+SSE) | Streamable HTTP transport |

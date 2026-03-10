@@ -38,7 +38,7 @@
       "get": {
         "operationId": "listApis",
         "summary": "List APIs",
-        "description": "Lists all APIs registered in a specific Azure API Management instance. Returns name, display name, path, and description for each API.",
+        "description": "Lists ALL APIs in an APIM instance. WARNING: Returns a large payload. Prefer searchApis with a keyword instead. Only use this when the user explicitly wants the complete unfiltered list after being asked to narrow their query.",
         "parameters": [
           {
             "name": "instanceName",
@@ -251,7 +251,7 @@
       "get": {
         "operationId": "getApiCatalog",
         "summary": "Get API Catalog",
-        "description": "Returns all APIs in an APIM instance together with their operations in a single call. Use this for broad discovery or to survey all available endpoints.",
+        "description": "Returns ALL APIs and ALL operations in a single call. WARNING: Very expensive (N+1 API calls, large payload). Do NOT use for broad or vague queries. Ask the user to provide a keyword and use searchApis + listApiOperations instead. Only use when the user explicitly confirms they want the entire catalog.",
         "parameters": [
           {
             "name": "instanceName",
