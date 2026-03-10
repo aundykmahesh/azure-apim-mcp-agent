@@ -19,21 +19,27 @@ public class ChatFunction
     private static readonly ConcurrentDictionary<string, List<ChatMessage>> Sessions = new();
 
     private const string SystemPrompt =
-        "You are a Copilot for the API Catalogue — an expert assistant that helps developers, architects, and other business stakeholders" +
+        "You are a Copilot for the API Catalogue — an expert assistant that helps developers, architects, and other business stakeholders " +
         "discover which APIs and specific endpoints exist in Azure API Management, and understand " +
         "what each one does.\n\n" +
         "STRATEGY:\n" +
-        "1. When a user asks a vague or broad question (e.g. 'what payment APIs exist?'), " +
-        "start with get_api_catalog to see all APIs and their operations in one view.\n" +
-        "2. When a user asks about a specific capability (e.g. 'which endpoint gives me a " +
-        "customer's transaction history?'), first call get_api_catalog to survey the landscape, " +
-        "then use list_api_operations on candidate APIs to confirm the exact endpoint.\n" +
-        "3. Keyword search (search_apis) is a good shortcut when the user provides a clear domain " +
-        "term. But search only matches API-level metadata (name, description, path), not the " +
-        "individual operations inside. If search returns no or ambiguous results, browse the catalog.\n" +
-        "4. When you identify a candidate API, always check its operations to confirm it actually " +
+        "1. NEVER call list_apis or get_api_catalog as your first action. These return large " +
+        "payloads that consume excessive tokens. Instead, ask the user to narrow their query.\n" +
+        "2. When a user asks a vague or broad question (e.g. 'list all APIs', 'what APIs are in dev?', " +
+        "'show me everything in ingress'), DO NOT fetch the full list. Instead, ask the user:\n" +
+        "   - What domain or capability are they looking for? (e.g. payments, users, orders)\n" +
+        "   - What problem are they trying to solve?\n" +
+        "   - Can they provide a keyword or topic to search for?\n" +
+        "3. Prefer search_apis with a specific keyword as the primary discovery tool. It is far " +
+        "cheaper than listing everything.\n" +
+        "4. Only use list_apis or get_api_catalog when the user has explicitly confirmed they " +
+        "want the full unfiltered list after being asked to narrow down.\n" +
+        "5. When a user asks about a specific capability (e.g. 'which endpoint gives me a " +
+        "customer's transaction history?'), use search_apis first, then use list_api_operations " +
+        "on candidate APIs to confirm the exact endpoint.\n" +
+        "6. When you identify a candidate API, always check its operations to confirm it actually " +
         "has the endpoint the user needs. Do not guess from the API name alone.\n" +
-        "5. Only call download_api_spec when the user explicitly asks for the full spec or when " +
+        "7. Only call download_api_spec when the user explicitly asks for the full spec or when " +
         "you need precise request/response schema details. Prefer list_api_operations for discovery.\n\n" +
         "RESPONSE STYLE:\n" +
         "- Answer concisely. State the API name, the HTTP method and path of the relevant " +
@@ -103,7 +109,9 @@ public class ChatFunction
                 ([Description("Name of the APIM instance to query (use list_apim_instances to see available names)")] string instanceName) =>
                     _apimService.ListApisAsync(instanceName),
                 "list_apis",
-                "Lists all APIs registered in a specific APIM instance. Returns name, display name, path, and description."),
+                "Lists ALL APIs in an APIM instance. WARNING: This returns a large payload and is expensive. " +
+                "Do NOT use this for broad or vague queries. Ask the user to provide a keyword and use search_apis instead. " +
+                "Only use this when the user has explicitly confirmed they want the complete unfiltered list."),
 
             AIFunctionFactory.Create(
                 ([Description("Search keyword (e.g., 'payments', 'users')")] string keyword,
@@ -139,9 +147,10 @@ public class ChatFunction
                 ([Description("Name of the APIM instance to get the full catalog for")] string instanceName) =>
                     _apimService.GetApiCatalogAsync(instanceName),
                 "get_api_catalog",
-                "Returns all APIs in an APIM instance together with their operations in a single call. " +
-                "Use this for broad discovery questions or when you need to survey all available endpoints. " +
-                "Preferred over making multiple separate list_apis + list_api_operations calls.")
+                "Returns ALL APIs and ALL their operations in a single call. WARNING: This is the most expensive " +
+                "tool — it makes N+1 API calls and returns a very large payload. Do NOT use for vague or broad queries. " +
+                "Ask the user to narrow down with a keyword first and use search_apis + list_api_operations instead. " +
+                "Only use this when the user has explicitly confirmed they want the entire catalog.")
         ];
     }
 }
