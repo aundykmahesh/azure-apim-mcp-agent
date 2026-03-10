@@ -13,19 +13,80 @@ The solution consists of an Azure Functions app deployed on Azure Container Apps
 ### 2.1 High-Level Flow
 
 ```
-AI Agent (Claude / Copilot / VS Code)
-    |   MCP Protocol
-    v
-Azure API Management (MCP Server)
-    |   REST over HTTPS
-    v
-Azure Container Apps (Azure Functions)
-    |   Azure SDK (Managed Identity)
-    v
-Azure Resource Manager (ARM) APIs
-    |
-    v
-Target APIM Instance(s) - API Metadata & OpenAPI Specs
+                        Azure APIM (aundy-apim)
+                 ┌──────────────────────────────────────┐
+                 │  Managed Gateway    Self-Hosted GW    │
+                 │  (all APIs +        (AI/MCP agent     │
+                 │   MCP Server)        API only)        │
+                 └──────┬───────────────────┬────────────┘
+                        │           config sync │
+         ┌──────────────┼───────────────────┼────────────┐
+         │     Container Apps Environment                │
+         │              │                   │            │
+         │    ┌─────────┴──────┐  ┌─────────┴─────────┐ │
+         │    │ Functions App  │  │ Self-Hosted GW    │ │
+         │    │ (apim-mcp-app) │  │ (apim-mcp-shgw)   │ │
+         │    │ :80            │  │ :8080             │ │
+         │    │ YOUR code      │  │ MS gateway image  │ │
+         │    └────────────────┘  └───────────────────┘ │
+         └───────────────────────────────────────────────┘
+                        │
+                        v
+              Azure Resource Manager
+                        │
+                        v
+              Target APIM Instance(s)
+```
+
+**Traffic paths:**
+- **Regular API consumers** → Cloud APIM managed gateway → backends
+- **AI/MCP clients (isolated)** → Self-hosted gateway (ACA) → Functions App (ACA)
+- **MCP Server (built-in)** → Cloud APIM managed gateway → Functions App
+
+### 2.1.1 MCP Server Flow
+
+```mermaid
+sequenceDiagram
+    actor AI as AI/MCP Client
+    participant APIM as Azure APIM<br/>(MCP Server)
+    participant SHGW as Self-Hosted<br/>Gateway
+    participant Func as Functions App<br/>(REST API)
+    participant ARM as Azure Resource<br/>Manager
+
+    AI->>APIM: Natural language request<br/>(MCP protocol)
+    APIM->>APIM: Map request to<br/>REST operation
+    APIM->>SHGW: Route via MCP gateway
+    SHGW->>Func: HTTP GET /instances/{name}/apis
+    Func->>ARM: Query APIM instance metadata
+    ARM-->>Func: API list
+    Func-->>SHGW: JSON response
+    SHGW-->>APIM: Response
+    APIM->>APIM: Translate REST<br/>to MCP tool result
+    APIM-->>AI: MCP tool result
+```
+
+### 2.1.2 Agent Flow (with Function Calling)
+
+```mermaid
+sequenceDiagram
+    actor User as User
+    participant OpenAI as Azure OpenAI<br/>(GPT-4o-mini)
+    participant Func as Functions App<br/>(/chat endpoint)
+    participant Tools as Tool Registry<br/>(7 discovery tools)
+    participant APIM as Target APIM<br/>Instance(s)
+
+    User->>Func: POST /chat<br/>Natural language query
+    Func->>OpenAI: Message + 7 tools (function calling)
+    OpenAI-->>Func: "I'll use search_apis<br/>and list_api_operations"
+    Func->>Tools: Execute search_apis(keyword)
+    Tools->>APIM: ARM call for APIs
+    APIM-->>Tools: Matching APIs
+    Func->>Tools: Execute list_api_operations(apiId)
+    Tools->>APIM: ARM call for operations
+    APIM-->>Tools: Operations list
+    Func->>OpenAI: Tool results + context
+    OpenAI-->>Func: Natural language response
+    Func-->>User: Answer with API details
 ```
 
 ### 2.2 Component Responsibilities
@@ -34,7 +95,8 @@ Target APIM Instance(s) - API Metadata & OpenAPI Specs
 |---|---|
 | **AI Agent** (MCP Client) | Sends natural language requests; invokes MCP tools |
 | **Azure API Management** | MCP Server protocol handler; auth gateway (subscription key + Entra ID); routes REST calls to backend |
-| **Azure Container Apps** | Hosts the .NET 10 Azure Functions app; scale-to-zero; consumption workload |
+| **Azure Container Apps** | Hosts the .NET 10 Azure Functions app and the self-hosted gateway; consumption workload |
+| **Self-Hosted Gateway** | APIM gateway container deployed in ACA; isolates AI/MCP traffic from regular API traffic; syncs config from cloud APIM |
 | **Azure Functions** | REST API endpoints for API discovery + AI chat agent with function calling |
 | **Azure Resource Manager** | Provides API metadata, descriptions, and OpenAPI export links from target APIM instances |
 | **Azure OpenAI** (optional) | Powers the `/chat` endpoint with GPT-4o-mini and function calling |
@@ -45,6 +107,7 @@ Target APIM Instance(s) - API Metadata & OpenAPI Specs
 - **REST-only backend**: The Functions app exposes standard REST endpoints, making it testable and reusable outside of MCP.
 - **Managed Identity everywhere**: No secrets stored anywhere. `DefaultAzureCredential` used for all Azure SDK calls.
 - **Scale-to-zero**: Container Apps scale down to 0 replicas when idle, keeping costs minimal.
+- **Self-hosted gateway for AI isolation**: AI/MCP traffic flows through a dedicated self-hosted gateway Container App, separate from the cloud managed gateway that serves regular APIs. The API is available on both gateways for flexibility.
 
 ---
 
@@ -141,11 +204,18 @@ Resource Group
   +-- Log Analytics Workspace (30-day retention)
   |
   +-- Container App Environment (Consumption workload)
-  |     +-- Container App: apim-mcp-app
-  |           - Image: {acr}/apim-mcp:latest
-  |           - CPU: 0.5 cores, Memory: 1 Gi
-  |           - Scale: 0-3 replicas (HTTP trigger, 50 concurrent)
-  |           - Ingress: External HTTPS (port 80)
+  |     +-- Container App: apim-mcp-app (Functions)
+  |     |     - Image: {acr}/apim-mcp:latest
+  |     |     - CPU: 0.5 cores, Memory: 1 Gi
+  |     |     - Scale: 0-3 replicas (HTTP trigger, 50 concurrent)
+  |     |     - Ingress: External HTTPS (port 80)
+  |     |
+  |     +-- Container App: apim-mcp-shgw (Self-Hosted Gateway)
+  |           - Image: mcr.microsoft.com/azure-api-management/gateway:2.9.2
+  |           - CPU: 0.25 cores, Memory: 0.5 Gi
+  |           - Scale: 1-3 replicas
+  |           - Ingress: External HTTPS (port 8080)
+  |           - Config synced from cloud APIM
   |
   +-- APIM Backend: apim-mcp-backend -> Container App FQDN
   |
@@ -153,6 +223,10 @@ Resource Group
   |     +-- 9 operations (listInstances, listApis, searchApis, getApiDetails,
   |     |       downloadApiSpec, listApiOperations, getApiCatalog, healthCheck, chat)
   |     +-- Policy: set-backend-service -> apim-mcp-backend
+  |     +-- Associated with both managed gateway AND self-hosted gateway
+  |
+  +-- APIM Self-Hosted Gateway: apim-mcp-shgw
+  |     +-- Gateway-API association -> apim-mcp-agent
   |
   +-- Role Assignments
         +-- API Management Service Reader -> target APIM
@@ -168,6 +242,8 @@ Resource Group
 | Container App Environment | `container-app-environment.bicep` | Log Analytics + ACA environment |
 | Container App | `container-app.bicep` | Functions container with env vars and scaling |
 | API Management | `api-management.bicep` | Backend, API, and 9 operations |
+| Self-Hosted Gateway | `self-hosted-gateway.bicep` | APIM gateway resource + API association |
+| Gateway Container App | `container-app-gateway.bicep` | SHGW container (MS image) with config secrets |
 | Role Assignments | `role-assignments.bicep` | RBAC for APIM reader + OpenAI user |
 | Orchestrator | `main.bicep` | Wires all modules together |
 
@@ -186,6 +262,8 @@ Resource Group
 | `azureOpenAIEndpoint` | OpenAI endpoint URL | `https://...cognitiveservices.azure.com/` |
 | `azureOpenAIDeploymentName` | Model deployment name | `gpt-4o-mini` |
 | `azureOpenAICognitiveAccountName` | OpenAI account name | `aundy-mm93xpod-westus` |
+| `selfHostedGatewayName` | SHGW resource name in APIM | `apim-mcp-shgw` |
+| `selfHostedGatewayToken` | SHGW auth token (from deploy script) | *(secure, generated at deploy)* |
 
 ---
 
@@ -290,10 +368,12 @@ src/AzureApimMcp.Functions/
 ```
 
 **Deployment script steps:**
-1. `docker build` - Multi-stage build from Dockerfile
-2. `az acr login` + `docker push` - Push image to ACR
-3. `az deployment group create` - Deploy Bicep infrastructure
-4. `az containerapp update` - Update Container App to pull latest image
+1. `docker build` — Multi-stage build from Dockerfile
+2. `az acr login` + `docker push` — Push image to ACR
+3. `az deployment group create` — Deploy Bicep infrastructure (pass 1: creates APIM gateway resource)
+4. `az apim gateway token create` — Generate self-hosted gateway authentication token
+5. `az deployment group create` — Deploy Bicep infrastructure (pass 2: deploys SHGW Container App with token)
+6. `az containerapp update` — Update Functions Container App to pull latest image
 
 ### 7.3 Post-Deployment: Enable MCP Server in APIM
 
@@ -363,5 +443,7 @@ AzureOpenAI__DeploymentName=gpt-4o-mini
 | Search | Substring matching | Semantic search with embeddings |
 | Spec caching | No caching | Cache specs to reduce ARM calls |
 | Catalog performance | N+1 ARM calls per request | Cache with `IMemoryCache` (5-min TTL) or Azure AI Search index |
-| Network isolation | External ingress | VNET integration for private connectivity |
+| Network isolation | Self-hosted gateway isolates AI/MCP traffic | VNET integration for full private connectivity |
+| SHGW token renewal | Token generated at deploy time (30-day expiry) | Automated token rotation via CI/CD or Key Vault |
+| SHGW rate limiting | No cross-instance sync (ACA lacks UDP) | Divide rate limit by replica count |
 | MCP transport | APIM built-in (HTTP+SSE) | Streamable HTTP transport |

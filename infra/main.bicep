@@ -24,6 +24,9 @@ param azureOpenAIDeploymentName string = ''
 @description('Azure OpenAI Cognitive Services account name (for role assignment)')
 param azureOpenAICognitiveAccountName string = ''
 
+@description('Whether to create role assignments (set to false if they already exist)')
+param createRoleAssignments bool = false
+
 // ── Managed Identity ──────────────────────────────────────────
 module identity 'modules/managed-identity.bicep' = {
   name: 'managed-identity'
@@ -70,7 +73,7 @@ module app 'modules/container-app.bicep' = {
 }
 
 // ── RBAC Role Assignments ─────────────────────────────────────
-module roles 'modules/role-assignments.bicep' = {
+module roles 'modules/role-assignments.bicep' = if (createRoleAssignments) {
   name: 'role-assignments'
   params: {
     principalId: identity.outputs.principalId

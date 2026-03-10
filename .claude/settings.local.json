@@ -9,7 +9,13 @@
       "WebFetch(domain:www.chingono.com)",
       "Bash(dotnet new sln --name azure-apim-mcp-agent)",
       "Bash(dotnet sln add src/AzureApimMcp.Functions/AzureApimMcp.Functions.csproj)",
-      "Bash(dotnet build)"
+      "Bash(dotnet build)",
+      "WebFetch(domain:plantuml.com)",
+      "WebSearch",
+      "Bash(az apim gateway list --resource-group aundydev --service-name aundy-apim -o json)",
+      "Bash(az rest --method get --url \"https://management.azure.com/subscriptions/a181ee41-b325-49cc-9866-78cedd19e733/resourceGroups/aundydev/providers/Microsoft.ApiManagement/service/aundy-apim/gateways?api-version=2022-08-01\" -o json)",
+      "Bash(az rest --method get --url \"https://management.azure.com/subscriptions/a181ee41-b325-49cc-9866-78cedd19e733/resourceGroups/aundydev/providers/Microsoft.ApiManagement/service/aundy-apim?api-version=2022-08-01\" --query \"{sku: sku, platformVersion: properties.platformVersion}\" -o json)",
+      "Bash(az rest --method get --url \"https://management.azure.com/subscriptions/a181ee41-b325-49cc-9866-78cedd19e733/resourceGroups/aundydev/providers/Microsoft.ApiManagement/service/aundy-apim/apis?api-version=2022-08-01\" --query \"value[].{name:name, displayName:properties.displayName, path:properties.path}\" -o table)"
     ]
   }
 }
