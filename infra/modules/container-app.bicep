@@ -8,6 +8,7 @@ param acrLoginServer string
 param apimInstances array
 param azureOpenAIEndpoint string = ''
 param azureOpenAIDeploymentName string = ''
+param storageAccountName string
 
 var baseEnv = [
   {
@@ -15,8 +16,16 @@ var baseEnv = [
     value: identityClientId
   }
   {
-    name: 'AzureWebJobsStorage'
-    value: 'UseDevelopmentStorage=false'
+    name: 'AzureWebJobsStorage__accountName'
+    value: storageAccountName
+  }
+  {
+    name: 'AzureWebJobsStorage__credential'
+    value: 'managedidentity'
+  }
+  {
+    name: 'AzureWebJobsStorage__clientId'
+    value: identityClientId
   }
   {
     name: 'FUNCTIONS_WORKER_RUNTIME'

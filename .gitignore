@@ -416,8 +416,11 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# IDE settings
+.idea/
 .claude/settings.local.json
-.claude/settings.local.json
+
 # Azure Functions local settings
 local.settings.json
 .claude/settings.local.json

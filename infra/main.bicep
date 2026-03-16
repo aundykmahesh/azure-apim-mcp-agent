@@ -46,6 +46,16 @@ module acr 'modules/container-registry.bicep' = {
   }
 }
 
+// ── Storage Account (for Azure Functions host) ────────────────
+module storage 'modules/storage-account.bicep' = {
+  name: 'storage-account'
+  params: {
+    name: replace('${environmentName}sa', '-', '')
+    location: location
+    identityPrincipalId: identity.outputs.principalId
+  }
+}
+
 // ── Container App Environment ─────────────────────────────────
 module appEnv 'modules/container-app-environment.bicep' = {
   name: 'container-app-env'
@@ -69,6 +79,7 @@ module app 'modules/container-app.bicep' = {
     apimInstances: targetApimInstances
     azureOpenAIEndpoint: azureOpenAIEndpoint
     azureOpenAIDeploymentName: azureOpenAIDeploymentName
+    storageAccountName: storage.outputs.storageAccountName
   }
 }
 
